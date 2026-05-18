@@ -24,3 +24,19 @@ View your app in AI Studio: https://ai.studio/apps/0c856905-cde3-4576-b4f6-35edd
    `npm run dev`
 
 Open http://localhost:3000.
+
+## Deploy to Vercel
+
+Use the `Vite` framework preset.
+
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Install Command: `npm install`
+
+Add these environment variables in Vercel Project Settings:
+
+- `NAVER_MAPS_CLIENT_ID`
+- `NAVER_SEARCH_CLIENT_ID`
+- `NAVER_SEARCH_CLIENT_SECRET`
+
+After deployment, add the Vercel production domain to NAVER Cloud Platform Maps > Web Service URL.
