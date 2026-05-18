@@ -1,7 +1,29 @@
-import { searchNaverLocal } from "../src/server/naver";
-
 function getQueryParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+async function searchNaverLocal(query: string) {
+  const clientId = process.env.NAVER_SEARCH_CLIENT_ID;
+  const clientSecret = process.env.NAVER_SEARCH_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Naver Search API credentials are not configured on server");
+  }
+
+  const apiUrl = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=1`;
+  const response = await fetch(apiUrl, {
+    headers: {
+      "X-Naver-Client-Id": clientId,
+      "X-Naver-Client-Secret": clientSecret,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Naver API error ${response.status}: ${response.statusText} ${errorText}`);
+  }
+
+  return response.json();
 }
 
 export default async function handler(req: any, res: any) {
