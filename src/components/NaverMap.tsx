@@ -89,13 +89,6 @@ export function NaverMap({ clientId, center = { lat: 37.5665, lng: 126.9780 }, z
 
     if (marker) {
       const position = new window.naver.maps.LatLng(marker.lat, marker.lng);
-      
-      markerRef.current = new window.naver.maps.Marker({
-        position: position,
-        map: mapRef.current,
-        title: marker.title,
-        animation: window.naver.maps.Animation.DROP
-      });
 
       const focusMarker = () => {
         mapRef.current.setZoom(17, false);
@@ -104,9 +97,17 @@ export function NaverMap({ clientId, center = { lat: 37.5665, lng: 126.9780 }, z
 
       focusMarker();
       window.requestAnimationFrame(focusMarker);
-      const focusTimer = window.setTimeout(focusMarker, 120);
+      const settleTimer = window.setTimeout(() => {
+        focusMarker();
+        markerRef.current = new window.naver.maps.Marker({
+          position: position,
+          map: mapRef.current,
+          title: marker.title,
+          animation: window.naver.maps.Animation.DROP
+        });
+      }, 180);
 
-      return () => window.clearTimeout(focusTimer);
+      return () => window.clearTimeout(settleTimer);
     }
   }, [marker, isLoaded]);
 
