@@ -145,6 +145,7 @@ function chooseNearestLocalSearchItem(items: NaverLocalItem[], restaurantName: s
 function PlaceSearchMap({ selectedRestaurant }: { selectedRestaurant: Restaurant | null }) {
   const [placeLocation, setPlaceLocation] = useState<PlaceLocation | null>(null);
   const [clientId, setClientId] = useState<string>('');
+  const [isLocationLoading, setIsLocationLoading] = useState(false);
 
   useEffect(() => {
     // Fetch Map Client ID securely from server
@@ -161,10 +162,12 @@ function PlaceSearchMap({ selectedRestaurant }: { selectedRestaurant: Restaurant
   useEffect(() => {
     if (!selectedRestaurant) {
       setPlaceLocation(null);
+      setIsLocationLoading(false);
       return;
     }
     
     const controller = new AbortController();
+    setIsLocationLoading(true);
 
     async function findLocation() {
       const manualLocation = MANUAL_PLACE_LOCATIONS[selectedRestaurant.name];
@@ -199,11 +202,17 @@ function PlaceSearchMap({ selectedRestaurant }: { selectedRestaurant: Restaurant
       setPlaceLocation(location);
     }
 
-    findLocation().catch(err => {
-      if (err.name === 'AbortError') return;
-      console.error("Failed to find location via Naver Search:", err);
-      setPlaceLocation(null);
-    });
+    findLocation()
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error("Failed to find location via Naver Search:", err);
+        setPlaceLocation(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLocationLoading(false);
+        }
+      });
 
     return () => controller.abort();
   }, [selectedRestaurant]);
@@ -255,6 +264,14 @@ function PlaceSearchMap({ selectedRestaurant }: { selectedRestaurant: Restaurant
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
           지도를 설정하는 중...
+        </div>
+      )}
+      {isLocationLoading && clientId && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/20">
+          <div
+            className="h-12 w-12 rounded-full border-4 border-white/90 border-t-amber-500 shadow-lg animate-spin"
+            aria-label="위치 불러오는 중"
+          />
         </div>
       )}
     </div>
