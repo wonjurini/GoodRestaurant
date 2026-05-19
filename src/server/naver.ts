@@ -47,7 +47,27 @@ export async function resolveNaverUrl(rawUrl: string) {
   }
 }
 
-export async function searchNaverLocal(query: string) {
+export function getNaverLocationFromUrl(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl);
+    const latParam = url.searchParams.get("lat");
+    const lngParam = url.searchParams.get("lng");
+    if (!latParam || !lngParam) return null;
+
+    const lat = Number(latParam);
+    const lng = Number(lngParam);
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export async function searchNaverLocal(query: string, display = 1) {
   const clientId = process.env.NAVER_SEARCH_CLIENT_ID;
   const clientSecret = process.env.NAVER_SEARCH_CLIENT_SECRET;
 
@@ -55,7 +75,8 @@ export async function searchNaverLocal(query: string) {
     throw new Error("Naver Search API credentials are not configured on server");
   }
 
-  const apiUrl = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=1`;
+  const safeDisplay = Math.min(Math.max(display, 1), 10);
+  const apiUrl = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=${safeDisplay}`;
   const response = await fetch(apiUrl, {
     headers: {
       "X-Naver-Client-Id": clientId,

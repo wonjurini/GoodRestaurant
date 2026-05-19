@@ -15,7 +15,7 @@ const SHEET_ID = '1e_iFONEtX9CaebJuEoZx37Sdc5sI-Kr5eg34mdH4I3Q';
 const CLOSED_RESTAURANT_ROWS: Record<string, Set<number>> = {
   한식: new Set([8, 12, 19, 21, 24, 25, 26, 33, 39, 41, 46, 53, 54, 55, 59, 72, 74, 79, 82, 89]),
   중식: new Set([3, 8, 14, 15]),
-  양식: new Set([5, 6, 8]),
+  양식: new Set([5, 6, 8, 12]),
   일식: new Set([3, 5, 6, 8, 10, 15, 16, 20, 22, 25, 28]),
   기타: new Set([2, 8, 13, 16, 19]),
   카페: new Set([8]),

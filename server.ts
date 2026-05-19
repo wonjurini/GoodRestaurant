@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { parse } from "dotenv";
-import { getNaverMenuUrl, resolveNaverUrl, searchNaverLocal } from "./src/server/naver";
+import { getNaverLocationFromUrl, getNaverMenuUrl, resolveNaverUrl, searchNaverLocal } from "./src/server/naver";
 
 function loadEnvFiles() {
   const mode = process.env.NODE_ENV === "production" ? "production" : "development";
@@ -41,18 +41,33 @@ async function startServer() {
   // API Route for Naver Local Search
   app.get("/api/search", async (req, res) => {
     const query = req.query.query;
+    const display = typeof req.query.display === "string" ? Number(req.query.display) : 1;
     if (!query || typeof query !== 'string') {
       res.status(400).json({ error: "Query is required" });
       return;
     }
 
     try {
-      const data = await searchNaverLocal(query);
+      const data = await searchNaverLocal(query, Number.isFinite(display) ? display : 1);
       res.json(data);
     } catch (error) {
       console.error("Local search error:", error);
       res.status(500).json({ error: "Failed to search location" });
     }
+  });
+
+  app.get("/api/place-location", async (req, res) => {
+    const rawUrl = req.query.url;
+    if (!rawUrl || typeof rawUrl !== "string") {
+      res.status(400).json({ error: "URL is required" });
+      return;
+    }
+
+    const resolvedUrl = await resolveNaverUrl(rawUrl);
+    res.json({
+      location: getNaverLocationFromUrl(resolvedUrl),
+      resolvedUrl,
+    });
   });
 
   app.get("/api/place-menu-url", async (req, res) => {

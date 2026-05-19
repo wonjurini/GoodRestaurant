@@ -5,6 +5,27 @@ import { NaverMap } from './NaverMap';
 import { Star, MapPin, ExternalLink, Coffee, Utensils, Search } from 'lucide-react';
 
 const RESTAURANT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1e_iFONEtX9CaebJuEoZx37Sdc5sI-Kr5eg34mdH4I3Q/edit?gid=318691226#gid=318691226';
+const GUIDE_CENTER = { lat: 37.5668, lng: 126.9827 };
+const PLACE_SEARCH_CONTEXTS = ['을지로', '종각', '광화문', '명동', '서울'];
+
+interface PlaceLocation {
+  lat: number;
+  lng: number;
+  _isKatech?: boolean;
+}
+
+interface NaverLocalItem {
+  title?: string;
+  category?: string;
+  roadAddress?: string;
+  address?: string;
+  mapx?: string;
+  mapy?: string;
+}
+
+const MANUAL_PLACE_LOCATIONS: Record<string, PlaceLocation> = {
+  온도: { lat: 37.5687931, lng: 126.9862618 },
+};
 
 function getRatingScore(rating: string) {
   const numericRating = Number(rating);
@@ -37,8 +58,92 @@ function getNaverMenuUrl(rawUrl: string) {
   }
 }
 
+function stripHtml(value = '') {
+  return value.replace(/<[^>]*>/g, '').trim();
+}
+
+function getDistanceMeters(from: { lat: number; lng: number }, to: { lat: number; lng: number }) {
+  const earthRadius = 6371000;
+  const toRadians = (degrees: number) => degrees * Math.PI / 180;
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+  const deltaLat = toRadians(to.lat - from.lat);
+  const deltaLng = toRadians(to.lng - from.lng);
+  const a = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+
+  return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getLocationFromNaverItem(item: NaverLocalItem): PlaceLocation | null {
+  let lng = Number(item.mapx);
+  let lat = Number(item.mapy);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  if (lng > 1000000) {
+    lng = lng / 10000000;
+    lat = lat / 10000000;
+    return { lat, lng };
+  }
+
+  return { lat, lng, _isKatech: true };
+}
+
+function getComparableLocation(location: PlaceLocation): { lat: number; lng: number } | null {
+  if (!location._isKatech) {
+    return location;
+  }
+
+  if (!window.naver?.maps?.TransCoord) return null;
+
+  const tm128 = new window.naver.maps.Point(location.lng, location.lat);
+  const latLng = window.naver.maps.TransCoord.fromTM128ToLatLng(tm128);
+  return { lat: latLng.lat(), lng: latLng.lng() };
+}
+
+function chooseNearestLocalSearchItem(items: NaverLocalItem[], restaurantName: string): PlaceLocation | null {
+  const uniqueCandidates = new Map<string, { item: NaverLocalItem; location: PlaceLocation; comparableLocation: { lat: number; lng: number } }>();
+
+  for (const item of items) {
+    const location = getLocationFromNaverItem(item);
+    if (!location) continue;
+
+    const comparableLocation = getComparableLocation(location);
+    if (!comparableLocation) continue;
+
+    const key = `${item.mapx}:${item.mapy}`;
+    if (!uniqueCandidates.has(key)) {
+      uniqueCandidates.set(key, { item, location, comparableLocation });
+    }
+  }
+
+  const candidates = [...uniqueCandidates.values()];
+  if (candidates.length === 0) return null;
+
+  const cleanName = restaurantName.replace(/\s+/g, '').toLowerCase();
+
+  candidates.sort((a, b) => {
+    const getScore = (candidate: typeof candidates[number]) => {
+      const title = stripHtml(candidate.item.title).replace(/\s+/g, '').toLowerCase();
+      const category = candidate.item.category || '';
+      const address = `${candidate.item.roadAddress || ''} ${candidate.item.address || ''}`;
+      let score = getDistanceMeters(GUIDE_CENTER, candidate.comparableLocation);
+
+      if (!title.includes(cleanName)) score += 3000;
+      if (!category.includes('음식점') && !category.includes('카페')) score += 1500;
+      if (!/(중구|종로구|을지로|종각|광화문|명동)/.test(address)) score += 2000;
+
+      return score;
+    };
+
+    return getScore(a) - getScore(b);
+  });
+
+  return candidates[0].location;
+}
+
 function PlaceSearchMap({ selectedRestaurant }: { selectedRestaurant: Restaurant | null }) {
-  const [placeLocation, setPlaceLocation] = useState<{lat: number; lng: number} | null>(null);
+  const [placeLocation, setPlaceLocation] = useState<PlaceLocation | null>(null);
   const [clientId, setClientId] = useState<string>('');
 
   useEffect(() => {
@@ -59,43 +164,46 @@ function PlaceSearchMap({ selectedRestaurant }: { selectedRestaurant: Restaurant
       return;
     }
     
-    const query = `${selectedRestaurant.name} 서울`;
     const controller = new AbortController();
-    
-    // Call our server proxy for Naver Search
-    fetch(`/api/search?query=${encodeURIComponent(query)}`, { signal: controller.signal })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error(`Failed to search location: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.items && data.items.length > 0) {
-          const item = data.items[0];
-          let lng = parseFloat(item.mapx);
-          let lat = parseFloat(item.mapy);
-          
-          let isKatech = false;
-          // Naver Local Search API historically returned KATECH coordinates.
-          // However, recently it often returns WGS84 coordinates multiplied by 10,000,000.
-          if (lng > 1000000) {
-              lng = lng / 10000000.0;
-              lat = lat / 10000000.0;
-          } else {
-              isKatech = true;
+
+    async function findLocation() {
+      const manualLocation = MANUAL_PLACE_LOCATIONS[selectedRestaurant.name];
+      if (manualLocation) {
+        setPlaceLocation(manualLocation);
+        return;
+      }
+
+      if (selectedRestaurant.url) {
+        const urlResponse = await fetch(`/api/place-location?url=${encodeURIComponent(selectedRestaurant.url)}`, { signal: controller.signal });
+        if (urlResponse.ok) {
+          const data = await urlResponse.json();
+          if (data.location) {
+            setPlaceLocation(data.location);
+            return;
           }
-          
-          setPlaceLocation({ lat, lng, _isKatech: isKatech } as any);
-        } else {
-          setPlaceLocation(null);
         }
-      })
-      .catch(err => {
-        if (err.name === 'AbortError') return;
-        console.error("Failed to find location via Naver Search:", err);
-        setPlaceLocation(null);
-      });
+      }
+
+      const searchResponses = await Promise.all(PLACE_SEARCH_CONTEXTS.map(async (context) => {
+        const query = `${selectedRestaurant.name} ${context}`;
+        const response = await fetch(`/api/search?query=${encodeURIComponent(query)}&display=5`, { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(`Failed to search location: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return (data.items || []) as NaverLocalItem[];
+      }));
+
+      const location = chooseNearestLocalSearchItem(searchResponses.flat(), selectedRestaurant.name);
+      setPlaceLocation(location);
+    }
+
+    findLocation().catch(err => {
+      if (err.name === 'AbortError') return;
+      console.error("Failed to find location via Naver Search:", err);
+      setPlaceLocation(null);
+    });
 
     return () => controller.abort();
   }, [selectedRestaurant]);
