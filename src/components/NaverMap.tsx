@@ -18,23 +18,8 @@ export function NaverMap({ clientId, center = { lat: 37.5665, lng: 126.9780 }, z
   const mapElement = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
-  const markerTimerRef = useRef<number | null>(null);
-  const mapIdleListenerRef = useRef<any>(null);
-  const markerRequestRef = useRef(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const clearPendingMarker = () => {
-    if (markerTimerRef.current !== null) {
-      window.clearTimeout(markerTimerRef.current);
-      markerTimerRef.current = null;
-    }
-
-    if (mapIdleListenerRef.current) {
-      window.naver?.maps?.Event?.removeListener(mapIdleListenerRef.current);
-      mapIdleListenerRef.current = null;
-    }
-  };
 
   useEffect(() => {
     const existingScript = document.getElementById('naver-map-script') as HTMLScriptElement;
@@ -97,27 +82,23 @@ export function NaverMap({ clientId, center = { lat: 37.5665, lng: 126.9780 }, z
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
 
-    const requestId = markerRequestRef.current + 1;
-    markerRequestRef.current = requestId;
-    clearPendingMarker();
-
-    if (markerRef.current) {
-      markerRef.current.setMap(null);
-      markerRef.current = null;
-    }
-
     if (!marker) {
+      if (markerRef.current) {
+        markerRef.current.setMap(null);
+        markerRef.current = null;
+      }
       return;
     }
 
     const position = new window.naver.maps.LatLng(marker.lat, marker.lng);
-    let didShowMarker = false;
 
-    const showMarker = () => {
-      if (didShowMarker || markerRequestRef.current !== requestId || !mapRef.current) return;
+    mapRef.current.setZoom(17, false);
+    mapRef.current.setCenter(position);
 
-      didShowMarker = true;
-      clearPendingMarker();
+    if (markerRef.current) {
+      markerRef.current.setPosition(position);
+      markerRef.current.setTitle(marker.title);
+    } else {
       markerRef.current = new window.naver.maps.Marker({
         position: position,
         map: mapRef.current,
@@ -127,17 +108,7 @@ export function NaverMap({ clientId, center = { lat: 37.5665, lng: 126.9780 }, z
           anchor: new window.naver.maps.Point(18, 44),
         },
       });
-    };
-
-    mapRef.current.setZoom(17, false);
-    mapRef.current.panTo(position);
-
-    mapIdleListenerRef.current = window.naver.maps.Event.addListener(mapRef.current, 'idle', showMarker);
-    markerTimerRef.current = window.setTimeout(showMarker, 500);
-
-    return () => {
-      clearPendingMarker();
-    };
+    }
   }, [marker, isLoaded]);
 
   return (
