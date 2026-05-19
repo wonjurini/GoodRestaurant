@@ -510,16 +510,16 @@ export default function MainLayout() {
       <div className="w-full md:w-[400px] lg:w-[480px] flex-shrink-0 flex flex-col border-r border-slate-200 shadow-sm z-10 h-full bg-white">
         
         {/* Header */}
-        <div className="p-6 pb-4 border-b border-slate-100">
-          <div className="flex items-start justify-between gap-3">
+        <div className="border-b border-slate-100 bg-white">
+          <div className="flex items-start justify-between gap-4 px-5 py-5">
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-800">교원 주변 맛집</h1>
-              <p className="mt-1 text-xs font-medium text-slate-500">제공 : 교원 최고의 미식가 이한빛님</p>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">교원 주변 맛집</h1>
+              <p className="mt-2 text-xs font-medium text-slate-500">제공 : 교원 최고의 미식가 이한빛님</p>
               <a
                 href={RESTAURANT_SHEET_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-700 transition-colors"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
               >
                 출처 : 맛집 시트 바로가기
                 <ExternalLink className="w-3 h-3" />
@@ -529,7 +529,7 @@ export default function MainLayout() {
               <button
                 type="button"
                 onClick={() => setIsGuestbookOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-amber-100 bg-amber-50 text-amber-700 shadow-sm transition-colors hover:bg-amber-100"
                 aria-label="방명록 열기"
                 title="방명록"
               >
@@ -540,54 +540,63 @@ export default function MainLayout() {
           </div>
           
           {/* Categories */}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => {
-                  setActiveCategory(cat);
-                  setSearchQuery('');
-                  setIsMobileMapOpen(false);
-                }}
-                className={cn(
-                  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-colors",
-                  activeCategory === cat 
-                    ? "bg-amber-50 text-amber-700" 
-                    : "text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                {cat === '카페' ? <Coffee className="w-4 h-4 flex-shrink-0" /> : <Utensils className="w-4 h-4 flex-shrink-0" />}
-                <span className="truncate">{cat}</span>
-              </button>
-            ))}
+          <div className="border-y border-slate-100 bg-slate-50/80 px-5 py-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">카테고리</span>
+              <span className="text-xs font-medium text-slate-400">{filteredData.length}곳</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    setActiveCategory(cat);
+                    setSearchQuery('');
+                    setIsMobileMapOpen(false);
+                  }}
+                  className={cn(
+                    "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border px-2 py-2.5 text-sm font-semibold transition-colors",
+                    activeCategory === cat 
+                      ? "border-amber-200 bg-white text-amber-700 shadow-sm" 
+                      : "border-transparent bg-transparent text-slate-600 hover:bg-white hover:text-slate-800"
+                  )}
+                >
+                  {cat === '카페' ? <Coffee className="w-4 h-4 flex-shrink-0" /> : <Utensils className="w-4 h-4 flex-shrink-0" />}
+                  <span className="truncate">{cat}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Search */}
-          <div className="mt-4 relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input 
-              type="text" 
-              placeholder={`${activeCategory} 맛집 검색...`} 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all text-slate-700"
-            />
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="text" 
+                  placeholder={`${activeCategory} 맛집 검색...`} 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-700 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOnlyBookmarks((value) => !value)}
+                className={cn(
+                  "inline-flex min-h-11 flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-colors",
+                  showOnlyBookmarks
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Bookmark className={cn("w-4 h-4", showOnlyBookmarks && "fill-current")} />
+                북마크
+                <span className={cn("text-xs", showOnlyBookmarks ? "text-amber-600" : "text-slate-400")}>({bookmarkCount})</span>
+              </button>
+            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowOnlyBookmarks((value) => !value)}
-            className={cn(
-              "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors",
-              showOnlyBookmarks
-                ? "border-amber-200 bg-amber-50 text-amber-700"
-                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            )}
-          >
-            <Bookmark className={cn("w-4 h-4", showOnlyBookmarks && "fill-current")} />
-            북마크만 보기
-            <span className="text-xs text-slate-400">({bookmarkCount})</span>
-          </button>
         </div>
 
         {/* List */}
