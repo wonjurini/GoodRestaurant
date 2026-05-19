@@ -18,8 +18,23 @@ export function NaverMap({ clientId, center = { lat: 37.5665, lng: 126.9780 }, z
   const mapElement = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const markerTimerRef = useRef<number | null>(null);
+  const mapIdleListenerRef = useRef<any>(null);
+  const markerRequestRef = useRef(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const clearPendingMarker = () => {
+    if (markerTimerRef.current !== null) {
+      window.clearTimeout(markerTimerRef.current);
+      markerTimerRef.current = null;
+    }
+
+    if (mapIdleListenerRef.current) {
+      window.naver?.maps?.Event?.removeListener(mapIdleListenerRef.current);
+      mapIdleListenerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const existingScript = document.getElementById('naver-map-script') as HTMLScriptElement;
@@ -82,33 +97,47 @@ export function NaverMap({ clientId, center = { lat: 37.5665, lng: 126.9780 }, z
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
 
-    // Remove existing marker
+    const requestId = markerRequestRef.current + 1;
+    markerRequestRef.current = requestId;
+    clearPendingMarker();
+
     if (markerRef.current) {
       markerRef.current.setMap(null);
+      markerRef.current = null;
     }
 
-    if (marker) {
-      const position = new window.naver.maps.LatLng(marker.lat, marker.lng);
-
-      const focusMarker = () => {
-        mapRef.current.setZoom(17, false);
-        mapRef.current.setCenter(position);
-      };
-
-      focusMarker();
-      window.requestAnimationFrame(focusMarker);
-      const settleTimer = window.setTimeout(() => {
-        focusMarker();
-        markerRef.current = new window.naver.maps.Marker({
-          position: position,
-          map: mapRef.current,
-          title: marker.title,
-          animation: window.naver.maps.Animation.DROP
-        });
-      }, 180);
-
-      return () => window.clearTimeout(settleTimer);
+    if (!marker) {
+      return;
     }
+
+    const position = new window.naver.maps.LatLng(marker.lat, marker.lng);
+    let didShowMarker = false;
+
+    const showMarker = () => {
+      if (didShowMarker || markerRequestRef.current !== requestId || !mapRef.current) return;
+
+      didShowMarker = true;
+      clearPendingMarker();
+      markerRef.current = new window.naver.maps.Marker({
+        position: position,
+        map: mapRef.current,
+        title: marker.title,
+        icon: {
+          content: '<div class="restaurant-map-marker"><div class="restaurant-map-marker-pin"><div class="restaurant-map-marker-dot"></div></div></div>',
+          anchor: new window.naver.maps.Point(18, 44),
+        },
+      });
+    };
+
+    mapRef.current.setZoom(17, false);
+    mapRef.current.panTo(position);
+
+    mapIdleListenerRef.current = window.naver.maps.Event.addListener(mapRef.current, 'idle', showMarker);
+    markerTimerRef.current = window.setTimeout(showMarker, 500);
+
+    return () => {
+      clearPendingMarker();
+    };
   }, [marker, isLoaded]);
 
   return (

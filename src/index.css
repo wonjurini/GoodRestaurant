@@ -8,4 +8,51 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;            /* Chrome, Safari and Opera */
   }
+
+  .restaurant-map-marker {
+    height: 48px;
+    pointer-events: none;
+    position: relative;
+    width: 36px;
+  }
+
+  .restaurant-map-marker-pin {
+    align-items: center;
+    animation: restaurant-marker-drop 360ms cubic-bezier(0.2, 0.9, 0.25, 1.1) both;
+    background: #f59e0b;
+    border: 3px solid #ffffff;
+    border-radius: 999px 999px 999px 0;
+    bottom: 4px;
+    box-shadow: 0 10px 18px rgb(15 23 42 / 0.24);
+    display: flex;
+    height: 32px;
+    justify-content: center;
+    left: 2px;
+    position: absolute;
+    transform: rotate(-45deg);
+    transform-origin: 50% 100%;
+    width: 32px;
+  }
+
+  .restaurant-map-marker-dot {
+    background: #ffffff;
+    border-radius: 999px;
+    height: 10px;
+    transform: rotate(45deg);
+    width: 10px;
+  }
+
+  @keyframes restaurant-marker-drop {
+    0% {
+      opacity: 1;
+      transform: translateY(-52px) rotate(-45deg) scale(0.98);
+    }
+    72% {
+      transform: translateY(4px) rotate(-45deg) scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) rotate(-45deg) scale(1);
+    }
+  }
 }
