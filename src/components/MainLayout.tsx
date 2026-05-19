@@ -540,7 +540,7 @@ export default function MainLayout() {
           </div>
           
           {/* Categories */}
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -550,14 +550,14 @@ export default function MainLayout() {
                   setIsMobileMapOpen(false);
                 }}
                 className={cn(
-                  "px-4 py-3 rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
+                  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-colors",
                   activeCategory === cat 
                     ? "bg-amber-50 text-amber-700" 
                     : "text-slate-600 hover:bg-slate-50"
                 )}
               >
-                {cat === '카페' ? <Coffee className="w-4 h-4 inline-block mr-1.5" /> : <Utensils className="w-4 h-4 inline-block mr-1.5" />}
-                {cat}
+                {cat === '카페' ? <Coffee className="w-4 h-4 flex-shrink-0" /> : <Utensils className="w-4 h-4 flex-shrink-0" />}
+                <span className="truncate">{cat}</span>
               </button>
             ))}
           </div>
