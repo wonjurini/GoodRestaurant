@@ -3,7 +3,7 @@ import { useRestaurants, Restaurant } from '../hooks/useRestaurants';
 import { useGuestbook } from '../hooks/useGuestbook';
 import { cn } from '../lib/utils';
 import { NaverMap } from './NaverMap';
-import { Star, MapPin, ExternalLink, Coffee, Utensils, Search, MessageSquareText, X, RefreshCw, PenLine, Bookmark } from 'lucide-react';
+import { Star, MapPin, ExternalLink, Coffee, Utensils, Search, MessageSquareText, X, RefreshCw, PenLine, Bookmark, ArrowLeft } from 'lucide-react';
 
 const RESTAURANT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1e_iFONEtX9CaebJuEoZx37Sdc5sI-Kr5eg34mdH4I3Q/edit?gid=318691226#gid=318691226';
 const GUESTBOOK_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1e_iFONEtX9CaebJuEoZx37Sdc5sI-Kr5eg34mdH4I3Q/edit?gid=1853269471#gid=1853269471';
@@ -45,6 +45,10 @@ function getStoredBookmarkIds() {
   } catch {
     return [];
   }
+}
+
+function isMobileWidth() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
 }
 
 function getNaverMenuUrl(rawUrl: string) {
@@ -378,10 +382,38 @@ export default function MainLayout() {
   const [isGuestbookOpen, setIsGuestbookOpen] = useState(false);
   const [bookmarkedRestaurantIds, setBookmarkedRestaurantIds] = useState<string[]>(() => getStoredBookmarkIds());
   const [showOnlyBookmarks, setShowOnlyBookmarks] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => isMobileWidth());
+  const [isMobileMapOpen, setIsMobileMapOpen] = useState(false);
 
   useEffect(() => {
     window.localStorage.setItem(BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarkedRestaurantIds));
   }, [bookmarkedRestaurantIds]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => {
+      const isMobile = mediaQuery.matches;
+      setIsMobileViewport(isMobile);
+      if (!isMobile) {
+        setIsMobileMapOpen(false);
+      }
+    };
+
+    updateViewport();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateViewport);
+    } else {
+      mediaQuery.addListener(updateViewport);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', updateViewport);
+      } else {
+        mediaQuery.removeListener(updateViewport);
+      }
+    };
+  }, []);
 
   const bookmarkedRestaurantIdSet = useMemo(() => new Set(bookmarkedRestaurantIds), [bookmarkedRestaurantIds]);
   const bookmarkCount = bookmarkedRestaurantIds.length;
@@ -392,6 +424,13 @@ export default function MainLayout() {
         ? currentIds.filter((id) => id !== restaurantId)
         : [...currentIds, restaurantId]
     ));
+  };
+
+  const selectRestaurant = (restaurant: Restaurant) => {
+    setSelectedRestaurant(restaurant);
+    if (isMobileViewport) {
+      setIsMobileMapOpen(true);
+    }
   };
 
   // Filter initially by category and search query
@@ -409,6 +448,7 @@ export default function MainLayout() {
   useEffect(() => {
     if (selectedRestaurant && selectedRestaurant.category !== activeCategory) {
       setSelectedRestaurant(null);
+      setIsMobileMapOpen(false);
     }
   }, [activeCategory, selectedRestaurant]);
 
@@ -507,6 +547,7 @@ export default function MainLayout() {
                 onClick={() => {
                   setActiveCategory(cat);
                   setSearchQuery('');
+                  setIsMobileMapOpen(false);
                 }}
                 className={cn(
                   "px-4 py-3 rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
@@ -564,11 +605,11 @@ export default function MainLayout() {
                   key={restaurant.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setSelectedRestaurant(restaurant)}
+                  onClick={() => selectRestaurant(restaurant)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
-                      setSelectedRestaurant(restaurant);
+                      selectRestaurant(restaurant);
                     }
                   }}
                   className={cn(
@@ -621,7 +662,7 @@ export default function MainLayout() {
       {/* Main Content (Map & Details) */}
       <div className="flex-1 hidden md:flex flex-col relative bg-[#e5e3df] overflow-hidden">
         <div className="flex-1 relative">
-          <PlaceSearchMap selectedRestaurant={selectedRestaurant} />
+          <PlaceSearchMap selectedRestaurant={isMobileViewport ? null : selectedRestaurant} />
           
           {/* Default State */}
           {!selectedRestaurant && (
@@ -680,10 +721,63 @@ export default function MainLayout() {
         )}
       </div>
 
-      {/* Mobile Map Button Floating */}
-      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2">
-         {/* Could implement full mobile toggle later, but currently keeping it desktop-first priority as per guidelines while adapting UI */}
-      </div>
+      {isMobileMapOpen && selectedRestaurant && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-[#e5e3df] md:hidden">
+          <div className="relative z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setIsMobileMapOpen(false)}
+              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 active:bg-slate-200"
+              aria-label="리스트로 돌아가기"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-amber-700">{selectedRestaurant.category}</div>
+              <h2 className="truncate text-lg font-bold text-slate-900">{selectedRestaurant.name}</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => toggleBookmark(selectedRestaurant.id)}
+              className={cn(
+                "inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors",
+                bookmarkedRestaurantIdSet.has(selectedRestaurant.id)
+                  ? "bg-amber-50 text-amber-600"
+                  : "bg-slate-100 text-slate-400 active:bg-slate-200"
+              )}
+              aria-label={bookmarkedRestaurantIdSet.has(selectedRestaurant.id) ? `${selectedRestaurant.name} 북마크 해제` : `${selectedRestaurant.name} 북마크 추가`}
+            >
+              <Bookmark className={cn("w-5 h-5", bookmarkedRestaurantIdSet.has(selectedRestaurant.id) && "fill-current")} />
+            </button>
+          </div>
+
+          <div className="relative flex-1 overflow-hidden">
+            <PlaceSearchMap selectedRestaurant={selectedRestaurant} />
+          </div>
+
+          <div className="relative z-20 border-t border-slate-200 bg-white p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.12)]">
+            <div className="mb-3 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="truncate text-xl font-bold text-slate-900">{selectedRestaurant.name}</h3>
+                <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">"{selectedRestaurant.review}"</p>
+              </div>
+              <div className="flex flex-shrink-0 text-amber-500 text-base tracking-widest">
+                {selectedRestaurant.rating}
+              </div>
+            </div>
+            {detailMenuUrl && (
+              <a
+                href={detailMenuUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 py-3 text-sm font-bold text-white shadow-md active:bg-amber-600"
+              >
+                상세 메뉴 보러가기 <ExternalLink className="w-4 h-4" />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       <GuestbookModal open={isGuestbookOpen} onClose={() => setIsGuestbookOpen(false)} />
 
