@@ -1,10 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRestaurants, Restaurant } from '../hooks/useRestaurants';
+import { useGuestbook } from '../hooks/useGuestbook';
 import { cn } from '../lib/utils';
 import { NaverMap } from './NaverMap';
-import { Star, MapPin, ExternalLink, Coffee, Utensils, Search } from 'lucide-react';
+import { Star, MapPin, ExternalLink, Coffee, Utensils, Search, MessageSquareText, X, RefreshCw, PenLine, Bookmark } from 'lucide-react';
 
 const RESTAURANT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1e_iFONEtX9CaebJuEoZx37Sdc5sI-Kr5eg34mdH4I3Q/edit?gid=318691226#gid=318691226';
+const GUESTBOOK_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1e_iFONEtX9CaebJuEoZx37Sdc5sI-Kr5eg34mdH4I3Q/edit?gid=1853269471#gid=1853269471';
+const BOOKMARK_STORAGE_KEY = 'goodRestaurant.bookmarkedRestaurantIds';
 const GUIDE_CENTER = { lat: 37.5668, lng: 126.9827 };
 const PLACE_SEARCH_CONTEXTS = ['을지로', '종각', '광화문', '명동', '서울'];
 
@@ -32,6 +35,16 @@ function getRatingScore(rating: string) {
   if (!Number.isNaN(numericRating)) return numericRating;
 
   return [...rating].filter((character) => character === '★' || character === '⭐').length;
+}
+
+function getStoredBookmarkIds() {
+  try {
+    const storedValue = window.localStorage.getItem(BOOKMARK_STORAGE_KEY);
+    const parsedValue = storedValue ? JSON.parse(storedValue) : [];
+    return Array.isArray(parsedValue) ? parsedValue.filter((value): value is string => typeof value === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 function getNaverMenuUrl(rawUrl: string) {
@@ -278,22 +291,119 @@ function PlaceSearchMap({ selectedRestaurant }: { selectedRestaurant: Restaurant
   );
 }
 
+function GuestbookModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { entries, loading, error, refetch } = useGuestbook(open);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+      <div className="w-full max-w-xl max-h-[82vh] overflow-hidden bg-white shadow-2xl border border-slate-200 flex flex-col">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-amber-700 text-sm font-semibold">
+              <MessageSquareText className="w-4 h-4" />
+              방명록
+            </div>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">오늘의 한마디</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+            aria-label="방명록 닫기"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-2">
+          <a
+            href={GUESTBOOK_SHEET_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-600 transition-colors"
+          >
+            <PenLine className="w-4 h-4" />
+            방명록 쓰기
+          </a>
+          <button
+            type="button"
+            onClick={refetch}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+            새로고침
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4">
+          {loading && entries.length === 0 ? (
+            <div className="py-14 flex flex-col items-center text-slate-500">
+              <div className="h-10 w-10 rounded-full border-4 border-white border-t-amber-500 shadow animate-spin" />
+              <p className="mt-4 text-sm">방명록을 불러오는 중...</p>
+            </div>
+          ) : error ? (
+            <div className="bg-white border border-red-100 p-5 text-sm text-red-600">
+              {error.message}
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="bg-white border border-slate-100 p-8 text-center text-sm text-slate-500">
+              아직 남겨진 한마디가 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {entries.map((entry) => (
+                <div key={entry.id} className="bg-white border border-slate-100 p-4 shadow-sm">
+                  <div className="text-xs font-semibold text-amber-700">{entry.date || '날짜 없음'}</div>
+                  <p className="mt-2 text-sm leading-6 text-slate-700 whitespace-pre-wrap">
+                    {entry.message}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MainLayout() {
   const { data, loading, error, categories } = useRestaurants();
   const [activeCategory, setActiveCategory] = useState<string>('한식');
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [selectedMenuUrl, setSelectedMenuUrl] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isGuestbookOpen, setIsGuestbookOpen] = useState(false);
+  const [bookmarkedRestaurantIds, setBookmarkedRestaurantIds] = useState<string[]>(() => getStoredBookmarkIds());
+  const [showOnlyBookmarks, setShowOnlyBookmarks] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarkedRestaurantIds));
+  }, [bookmarkedRestaurantIds]);
+
+  const bookmarkedRestaurantIdSet = useMemo(() => new Set(bookmarkedRestaurantIds), [bookmarkedRestaurantIds]);
+  const bookmarkCount = bookmarkedRestaurantIds.length;
+
+  const toggleBookmark = (restaurantId: string) => {
+    setBookmarkedRestaurantIds((currentIds) => (
+      currentIds.includes(restaurantId)
+        ? currentIds.filter((id) => id !== restaurantId)
+        : [...currentIds, restaurantId]
+    ));
+  };
 
   // Filter initially by category and search query
   const filteredData = useMemo(() => {
     return data
       .filter(r => 
         r.category === activeCategory && 
+        (!showOnlyBookmarks || bookmarkedRestaurantIdSet.has(r.id)) &&
         (searchQuery === '' || r.name.toLowerCase().includes(searchQuery.toLowerCase()))
       )
       .sort((a, b) => getRatingScore(b.rating) - getRatingScore(a.rating) || a.name.localeCompare(b.name, 'ko'));
-  }, [data, activeCategory, searchQuery]);
+  }, [data, activeCategory, searchQuery, showOnlyBookmarks, bookmarkedRestaurantIdSet]);
 
   // When category changes, reset selection if the selected restaurant is not in it
   useEffect(() => {
@@ -361,16 +471,33 @@ export default function MainLayout() {
         
         {/* Header */}
         <div className="p-6 pb-4 border-b border-slate-100">
-          <h1 className="text-xl font-bold tracking-tight text-slate-800">교원 주변 맛집</h1>
-          <a
-            href={RESTAURANT_SHEET_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-700 transition-colors"
-          >
-            맛집 정보(이한빛 님 제공 시트 바로가기)
-            <ExternalLink className="w-3 h-3" />
-          </a>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-800">교원 주변 맛집</h1>
+              <p className="mt-1 text-xs font-medium text-slate-500">제공 : 교원 최고의 미식가 이한빛님</p>
+              <a
+                href={RESTAURANT_SHEET_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-700 transition-colors"
+              >
+                출처 : 맛집 시트 바로가기
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className="flex flex-shrink-0 flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsGuestbookOpen(true)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                aria-label="방명록 열기"
+                title="방명록"
+              >
+                <MessageSquareText className="w-5 h-5" />
+              </button>
+              <span className="text-[11px] font-semibold text-slate-500">방명록</span>
+            </div>
+          </div>
           
           {/* Categories */}
           <div className="mt-3 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -405,41 +532,86 @@ export default function MainLayout() {
               className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all text-slate-700"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowOnlyBookmarks((value) => !value)}
+            className={cn(
+              "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors",
+              showOnlyBookmarks
+                ? "border-amber-200 bg-amber-50 text-amber-700"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            )}
+          >
+            <Bookmark className={cn("w-4 h-4", showOnlyBookmarks && "fill-current")} />
+            북마크만 보기
+            <span className="text-xs text-slate-400">({bookmarkCount})</span>
+          </button>
         </div>
 
         {/* List */}
         <div className="flex-1 overflow-y-auto bg-slate-50 p-0">
           {filteredData.length === 0 ? (
             <div className="text-center py-10 text-slate-400 text-sm">
-              해당하는 맛집이 없습니다.
+              {showOnlyBookmarks ? '북마크한 맛집이 없습니다.' : '해당하는 맛집이 없습니다.'}
             </div>
           ) : (
             filteredData.map((restaurant) => {
               const isSelected = selectedRestaurant?.id === restaurant.id;
+              const isBookmarked = bookmarkedRestaurantIdSet.has(restaurant.id);
               return (
-                <button
+                <div
                   key={restaurant.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedRestaurant(restaurant)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedRestaurant(restaurant);
+                    }
+                  }}
                   className={cn(
-                    "w-full text-left p-5 bg-white border-b border-slate-100 transition-colors last:border-b-0",
+                    "w-full cursor-pointer text-left p-5 bg-white border-b border-slate-100 transition-colors last:border-b-0",
                     isSelected 
                       ? "bg-slate-50 border-l-4 border-l-amber-500 shadow-sm" 
                       : "hover:bg-slate-50 border-l-4 border-l-transparent"
                   )}
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <h3 className={cn("font-bold text-lg leading-tight", isSelected ? "text-slate-900" : "text-slate-800 group-hover:text-slate-900")}>
-                      {restaurant.name}
-                    </h3>
-                    <div className="flex items-center text-amber-500 text-sm mt-1">
-                      <Star className="w-4 h-4 fill-current mr-1" />
-                      <span className="font-medium text-slate-700">{getRatingScore(restaurant.rating) || restaurant.rating}</span>
+                    <div className="min-w-0 pr-3">
+                      <h3 className={cn("font-bold text-lg leading-tight", isSelected ? "text-slate-900" : "text-slate-800 group-hover:text-slate-900")}>
+                        {restaurant.name}
+                      </h3>
+                    </div>
+                    <div className="flex flex-shrink-0 items-center gap-2">
+                      <div className="flex items-center text-amber-500 text-sm mt-1">
+                        <Star className="w-4 h-4 fill-current mr-1" />
+                        <span className="font-medium text-slate-700">{getRatingScore(restaurant.rating) || restaurant.rating}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleBookmark(restaurant.id);
+                        }}
+                        className={cn(
+                          "h-8 w-8 inline-flex items-center justify-center rounded-full transition-colors",
+                          isBookmarked
+                            ? "bg-amber-50 text-amber-600"
+                            : "text-slate-300 hover:bg-slate-100 hover:text-amber-500"
+                        )}
+                        aria-label={isBookmarked ? `${restaurant.name} 북마크 해제` : `${restaurant.name} 북마크 추가`}
+                        title={isBookmarked ? '북마크 해제' : '북마크 추가'}
+                      >
+                        <Bookmark className={cn("w-4 h-4", isBookmarked && "fill-current")} />
+                      </button>
                     </div>
                   </div>
                   <p className="text-sm text-slate-500 line-clamp-2 mt-2">
                     "{restaurant.review}"
                   </p>
-                </button>
+                </div>
               );
             })
           )}
@@ -474,6 +646,19 @@ export default function MainLayout() {
                 <div className="flex text-amber-500 tracking-widest text-lg">
                   {selectedRestaurant.rating}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => toggleBookmark(selectedRestaurant.id)}
+                  className={cn(
+                    "mt-3 inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold transition-colors",
+                    bookmarkedRestaurantIdSet.has(selectedRestaurant.id)
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-amber-600"
+                  )}
+                >
+                  <Bookmark className={cn("w-4 h-4", bookmarkedRestaurantIdSet.has(selectedRestaurant.id) && "fill-current")} />
+                  북마크
+                </button>
               </div>
             </div>
             
@@ -499,6 +684,8 @@ export default function MainLayout() {
       <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2">
          {/* Could implement full mobile toggle later, but currently keeping it desktop-first priority as per guidelines while adapting UI */}
       </div>
+
+      <GuestbookModal open={isGuestbookOpen} onClose={() => setIsGuestbookOpen(false)} />
 
     </div>
   );
