@@ -40,6 +40,7 @@ export function useRestaurants() {
           
           Papa.parse(csvText, {
             header: true,
+            transformHeader: (header) => header.trim(),
             skipEmptyLines: true,
             complete: (results) => {
               const rows = results.data as Record<string, string>[];
